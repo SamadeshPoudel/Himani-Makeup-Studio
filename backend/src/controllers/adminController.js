@@ -3,6 +3,7 @@ import adminLoginSchema from "../schema/adminLoginSchema.js";
 import adminSchema from "../schema/adminSchema.js";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import Booking from "../models/bookingModel.js";
 dotenv.config();
 
 export async function adminSignup(req, res) {
@@ -66,4 +67,30 @@ export async function adminLogin(req, res) {
         }
         return res.status(500).json({ msg: "Internal server error: Error in adminLogin" });
     }
+}
+
+export async function adminDashboard(req, res) {
+    try {
+        //return total no. of bookings, daily booking, weekly and monthly booking
+        const now = new Date();
+
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        const startOfWeek =    new Date(now.setDate(now.getDate() - now.getDay()));
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        const totalBookings = await Booking.countDocuments();
+        const dailyBookings = await Booking.countDocuments({createdAt:{$gte: startOfToday}});
+        const weeklyBookings = await Booking.countDocuments({createdAt:{ $gte: startOfWeek}});
+        const monthlyBookings = await Booking.countDocuments({ createdAt: { $gte: startOfMonth } });
+
+        return res.status(200).json({
+            totalBookings,
+            dailyBookings,
+            weeklyBookings,
+            monthlyBookings
+        })
+    } catch (error) {
+        res.status(500).json({msg:"Error fetching booking details; Error in adminDashboard", error:error.message})
+    }
+    
 }
