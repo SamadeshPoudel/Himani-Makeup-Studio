@@ -26,7 +26,19 @@ const bookingSchema = new mongoose.Schema({
         },
         message: 'Time must be in format HH:MM or HH:MM AM/PM'
     }
-}
+},
+// later added to make the efficient booking route for admin
+    serviceType: {
+        type: String,
+        required: true,
+        enum: ['bridal', 'party', 'casual', 'engagement', 'photoshoot'],
+        default: 'casual'
+    },
+    status: {
+        type: String,
+        enum: ['pending', 'confirmed', 'completed', 'cancelled'],
+        default: 'pending'
+    },
 },{
     timestamps:true
 })
