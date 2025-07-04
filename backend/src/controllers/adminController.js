@@ -48,7 +48,7 @@ export async function adminLogin(req, res) {
             return res.status(400).json({msg:"Invalid email or password"})
         }
         //Generating jwt
-        const token = jwt.sign({id:admin._id}, process.env.JWT_SECRET, {expiresIn:"24h"});
+        const token = jwt.sign({id:admin._id}, process.env.JWT_SECRET, {expiresIn:"7d"});
 
         return res.status(200).json({
             msg:"Login successful",
@@ -71,7 +71,7 @@ export async function adminLogin(req, res) {
 
 export async function adminDashboard(req, res) {
     try {
-        //return total no. of bookings, daily booking, weekly and monthly booking
+        //return total no. of bookings (data relative to the chart in frontend), weekly and monthly booking
         const now = new Date();
 
         const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -91,6 +91,107 @@ export async function adminDashboard(req, res) {
         })
     } catch (error) {
         res.status(500).json({msg:"Error fetching booking details; Error in adminDashboard", error:error.message})
+    }
+    
+}
+
+export async function getDashboardStats(req, res) {
+    try {
+        const now = new Date();
+        const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    //WEEKLY BOOKINGS
+    const weekly = await Booking.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startOfWeek }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            day: { $dayOfWeek: "$createdAt" },
+            date: {
+              $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } // Mon, Tue, etc.
+            }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { "_id.day": 1 } }
+    ]);
+
+    //monthly booking
+    const monthly = await Booking.aggregate([
+      {
+        $match: {
+          createdAt: { $gte: startOfMonth, $lt: endOfMonth }
+        }
+      },
+      {
+        $group: {
+          _id: {
+            date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }
+          },
+          count: { $sum: 1 }
+        }
+      },
+      { $sort: { "_id.date": 1 } }
+    ]);
+
+    //serviceTypeDistribution
+    const serviceTypeDistribution = await Booking.aggregate([
+      {
+        $group: {
+          _id: "$serviceType",
+          count: { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          type: "$_id",
+          count: 1
+        }
+      }
+    ]);
+
+    return res.status(200).json({
+        weekly,
+        monthly,
+        serviceTypeDistribution
+    })
+
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({msg:"Error generating dashboard stats: Error in getDashboardStats", error:error.message});
+    }
+}
+
+export async function getAllBookings(req, res) {
+    try {
+        const {status, serviceType, date} = req.query;
+        const filter = {};
+
+        if(status) filter.status = status;
+        if(serviceType) filter.serviceType = serviceType;
+        if(date){
+            const selectedDate = new Date(date);
+            const nextDate = new Date(selectedDate);
+            nextDate.setDate(nextDate.getDate()+1);
+
+            filter.date = {
+                $gte: selectedDate,
+                $lt: nextDate
+            };
+        }
+
+        const bookings = await Booking.find(filter).sort({createdAt: -1});
+        return res.status(200).json({bookings});
+    } catch (error) {
+        return res.status(500).json({msg:"Error fetching bookings: Error in getAllBookings", error:error.message})
     }
     
 }
